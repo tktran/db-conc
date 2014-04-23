@@ -1,0 +1,190 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Simple Sectioned Essay Template
+% LaTeX Template
+%
+% This template has been downloaded from:
+% http://www.latextemplates.com
+%
+% Note:
+% The \lipsum[#] commands throughout this template generate dummy text
+% to fill the template out. These commands should all be removed when 
+% writing essay content.
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%----------------------------------------------------------------------------------------
+%	PACKAGES AND OTHER DOCUMENT CONFIGURATIONS
+%----------------------------------------------------------------------------------------
+
+\documentclass[12pt]{article} % Default font size is 12pt, it can be changed here
+
+\usepackage{geometry} % Required to change the page size to A4
+\geometry{a4paper} % Set the page size to be A4 as opposed to the default US Letter
+
+\usepackage{graphicx} % Required for including pictures
+
+\usepackage{float} % Allows putting an [H] in \begin{figure} to specify the exact location of the figure
+\usepackage{wrapfig} % Allows in-line images such as the example fish picture
+
+\usepackage{lipsum} % Used for inserting dummy 'Lorem ipsum' text into the template
+
+\linespread{1.2} % Line spacing
+
+%\setlength\parindent{0pt} % Uncomment to remove all indentation from paragraphs
+
+\graphicspath{{Pictures/}} % Specifies the directory where pictures are stored
+
+\begin{document}
+
+%----------------------------------------------------------------------------------------
+%	TITLE PAGE
+%----------------------------------------------------------------------------------------
+
+\begin{titlepage}
+
+\newcommand{\HRule}{\rule{\linewidth}{0.5mm}} % Defines a new command for the horizontal lines, change thickness here
+
+\center % Center everything on the page
+
+\textsc{\LARGE California State University, Long Beach}\\[1.5cm] % Name of your university/college
+\textsc{\Large CECS 327}\\[0.5cm] % Major heading such as course name
+\textsc{\large Net-centric Computing}\\[0.5cm] % Minor heading such as course title
+
+\HRule \\[0.4cm]
+{ \huge \bfseries The Art of Database Concurrency}\\[0.4cm] % Title of your document
+\HRule \\[1.5cm]
+
+\begin{minipage}{0.4\textwidth}
+\begin{flushleft} \large
+\emph{Author:}\\
+Tan \textsc{Tran} % Your name
+\end{flushleft}
+\end{minipage}
+~
+\begin{minipage}{0.4\textwidth}
+\begin{flushright} \large
+\emph{Supervisor:} \\
+Dr. Burkhard \textsc{Englert} % Supervisor's Name
+\end{flushright}
+\end{minipage}\\[4cm]
+
+{\large \today}\\[3cm] % Date, change the \today to a set date if you want to be precise
+
+%\includegraphics{Logo}\\[1cm] % Include a department/university logo - this will require the graphicx package
+
+\vfill % Fill the rest of the page with whitespace
+
+\end{titlepage}
+
+%----------------------------------------------------------------------------------------
+%	TABLE OF CONTENTS
+%----------------------------------------------------------------------------------------
+
+\tableofcontents % Include a table of contents
+
+\newpage % Begins the essay on a new page instead of on the same page as the table of contents 
+
+%----------------------------------------------------------------------------------------
+%	INTRODUCTION
+%----------------------------------------------------------------------------------------
+
+\section{Introduction} % Major section
+The forces underlying a "multiprocessor revolution" in programming are also causing a revolution in the databases field, toward massive multi-client concurrency and the storage of \textit{very large} amounts of data. These forces are both push and pull: database designers are being \textit{pushed} to develop such systems due to the rise of high-throughput web applications, as exemplified by Facebook, which as of 2011 serviced 60 million queries and 4 million row changes per second, and \textit{pulled} to do so in response to recent hardware advances, such as cheap multi-core CPUs, that have made it physically possible for databases to service so many transactions at once.
+
+The pressure to innovate has thus spawned challengers to the relational database establishment for the business of the highest throughput applications. They are collectively termed \textit{NoSQL} databases, and work by relaxing certain correctness constraints that relational databases are founded on and thus cannot forego. But, in a sense, industry-strength relational databases have anticipated that challenge for many years now: by seeking to ensure database correctness in the case of concurrent access by two or three, ten or a hundred clients, they have put into place, if not implemented, the mechanisms to ensure correctness for thousands and millions of concurrent accesses. 
+
+It stands that relational databases have work to do as technology progresses, both by developing novel concurrency solutions and by adapting techniques from multiprocessor programming. I consider the latter approach by relating the techniques taught in the CSULB Net-centric Computing class to those implemented in Oracle MySQL, the most popular relational database and arguably one of the most innovative in response to concurrency concerns. I build upon the things I learned in the Database Fundamentals class and parallel the things I am learning in Net-centric Computing, in particular by matching database concepts to the \textit{Art of Multiprocessor Programming} textbook, chapter by chapter.
+
+%------------------------------------------------
+
+\subsection{The Rigors of Database Concurrency} % Sub-section
+
+In 1969, Edgar Codd formulated the \textit{relational model} of databases, which formalized and argued for a new type of database governed by logical relations, but forewent describing its implementation details, except for a mention that "inputs causing [...] inconsistencies [...] can be tracked down if the system maintains a journal of all state-changing transactions". It was left for industry, rather, to implement Codd's ideas and realize the importance of that statement. In particular, the implementation of \textit{transactions} would come to be more important than had been anticipated; one traded their usefulness as a description of a \textit{unit} of work for the challenges of ensuring database consistency between and within transactions. 
+
+For example, banking databases must implement money transfers as atomic transactions. Consider Alice, who has \$500, sending \$100 to Bob, who has \$400. The database starts a transaction, subtracts \$100 from Alice's account, and is about to add \$100 to Bob's account when the power to the server fails.  Upon restart, Alice has \$500 and Bob has \$500, so that the bank is now in an incorrect state. 
+
+% Some of this is exact wording from wikipedia. change later.
+Situations like this led Jim Gray to define certain correctness conditions for database transactions in 1979, and for Andreas Reuter and Theo H{\"a}rder to describe them using the acronym \textit{ACID} in 1981. To elaborate, transactions are \textbf{a}tomic if transactions either complete successfully or not at all; if they fail partway through, the database should \textit{roll back} the entire transaction. The database ensures \textbf{c}onsistency if each transaction brings the database from one correct state to another. Transactions are \textbf{i}solated if transaction B does not see that changes made by transaction A until A has finished. Lastly, the database is \textbf{d}urable if, once a transaction has been committed, it will remain so, even in the event of power loss, crashes, or errors.
+
+The ACID properties are simple to implement for non-concurrent databases. An undergraduate-level implementation, for example, might keep a history of each row's data, assign a timestamp to each transaction, and maintain a global record of the last successful transaction, which transactions would set only upon completing all of their transactions successfully and passing validation. To retrieve data, the database fetches from history only the rows matching the global timestamp.
+
+But concurrency makes ensuring ACID more difficult, and adds an additional \textit{serializability} requirement: that concurrent transactions maintain ACID; that is, despite transactions not being \textit{physically} isolated, their operations are interspersed as if they had been isolated in time. ACIDS (ACID and serializability) is thus useful for evaluating different database concurrency controls.
+
+The difficulty of maintaining serializability is illustrated in the following problems.
+
+\subsubsection{Lost Updates}
+
+Consider database clients Alice and Bob, who share a bank account tuple and start concurrent transactions to add \$50 and \$25, respectively. Alice reads \texttt{balance = 100}, and Bob reads \texttt{balance = 100}. Alice sets \texttt{balance = 100 + 50 = 150} and Bob sets \texttt{balance = 100 + 25 = 125}. Both end their transactions. \texttt{balance} should be \texttt{100 + 50 + 25 = 175}, but instead is 125 because Alice's update was lost by the subsequent overwrite. This problem is a \textit{write anomaly}; the following are \textit{read anomalies}.
+
+\subsubsection{Dirty Reads}
+Carol starts a transaction to transfer \$100 from her bank account to Dave's bank account---that is, subtract \$100 from hers and add \$100 to Dave's. Meanwhile, after the subtraction, but before the addition, the bank manager queries the database for the total amount money held by the bank, and sees \$100 less than he should, as Dave has not been given his money yet. The manager has made a dirty read.
+
+\subsubsection{Non-repeatable Reads}
+The bank does two things monthly: 1) credit customers with 5\% interest, and 2) apply a monthly service fee of 1\%. Consider Edward, who has \$100 in his account. The database starts a transaction, retrieves all customers, and credits them with interest, so that Edward now has \$105. The transaction is about to apply the service fee, when Edward makes a deposit of \$95 and so has \$200. Then, all customers are again retrieved, the monthly service fee is applied, and Edward is left with \$200 - (0.01*200) = \$198. But that is incorrect, as the +5\%, -1\% process should be applied to either Edward's original balance of \$100, or his new balance of \$100 + \$95 = \$195, but not a mix of both, as transpired when the first read of Edward was not repeatable for the second.
+
+\subsubsection{Phantom Reads}
+The bank applies a monthly service fee only to customers who have not made a deposit in the last 30 days. A transaction to maintain that policy: 1) retrieves those customers, 2) applies the fees, and 3) retrieves those customers again in order to notify them of the charge. Meanwhile, after (2) but before (3), Frank, who has not made a deposit recently, makes a deposit. He thus has not been charged in (2), but nevertheless sees the message in (3). His row is a phantom which did not appear in the first range retrieval, but did in the second.
+
+\subsection{The Harsh Realities of Ensuring ACID}
+A first solution to the preceding concurrency problems would involve locking the database before each transaction, but that would defeat the purpose of concurrency. Further refinement would lock only the relevant tables, and further would lock only the relevant \textit{rows}. Lastly, the database would apply different levels of read/write locks; for example, two transactions which read, but do not write, a row should both be able to access it. (More to come)
+
+Further and further optimization approaches a theoretical speedup limit, as measured with Amdahl's Law, described in \textit{AoMP}, section 1.5. However, databases are more susceptible to coherency delay, the work that the system must perform to synchronize shared data, than sequential programs, as Amdahl's Law is made to model. In that case, Neil Gunther's \textit{Universal Scalability Law} presents a more accurate measure of scalability. It is Amdahl's Law with an additional \textit{coherency penalty}: \marginpar{\scriptsize{TODO: Some defns from Percona paper. Paraphrase later.}}
+\[C(N) = \frac{N}{1+\sigma (N-1)+\kappa N(N-1)}\] \marginpar{\scriptsize{TODO: Write equation like Amdahl's in textbook}}
+
+where N is the number of processes available to process transactions, \(\sigma\) is \textit{contention} (the system's performance degradation due to portions of the work being serial instead of parallel) and \(\kappa\) is \textit{coherency delay}, which in databases is often mutex locking. \marginpar{\scriptsize{TODO: Example.}}
+
+The coherency parameter reconciles \textit{Chapter 1: Introduction}'s coverage of Amdahl's Law with \textit{Chapter 7: Spin Locks and Contention}'s coverage of caching and memory locality.
+%----------------------------------------------------------------------------------------
+%	MAJOR SECTION 1
+%----------------------------------------------------------------------------------------
+
+\section{Mutual Exclusion} % Major section
+
+The central problem of database concurrency, then, is reconciling the scalability goals of \textit{increased parallelization} and \textit{decreased coherency delay} with the correctness goals of eliminating \textit{concurrency anomalies}. Toward that end, database designers have codified \textit{isolation levels} which trade varying levels of mutual exclusion for increased performance. They are outlined in the SQL standard, from "dirtiest" to "cleanest", as:
+\begin{description}
+  \item[Read Uncommitted] Statements can read data that has been modified by ongoing transactions. That is, allow dirty reads, non-repeatable reads, and phantom reads.
+  \item[Read Committed] Statements cannot read data that has been modified by ongoing transactions. But, during a transaction, data can be \textit{changed} by other transactions. That is, allow non-repeatable reads and phantom reads, but disallow dirty reads. 
+  \item[Repeatable Read] Statements cannot read modified data, nor write data being read by other transactions. However, there are no \textit{range} locks, so that phantom reads are allowed, even if non-repeatable reads and dirty reads are not.
+  \item[Serializable] Repeatable read, with additional \textit{range locking} to make phantom reads impossible. This makes all transactions linearizable as defined in \textit{AoMP}.\marginpar{\scriptsize{TODO: cover lost updates for all 4}}
+\end{description}
+
+Each level is implemented with different types of mutual exclusion locks
+%------------------------------------------------
+
+
+%----------------------------------------------------------------------------------------
+%	MAJOR SECTION X - TEMPLATE - UNCOMMENT AND FILL IN
+%----------------------------------------------------------------------------------------
+
+%\section{Content Section}
+
+%\subsection{Subsection 1} % Sub-section
+
+% Content
+
+%------------------------------------------------
+
+%\subsection{Subsection 2} % Sub-section
+
+% Content
+
+%----------------------------------------------------------------------------------------
+%	CONCLUSION
+%----------------------------------------------------------------------------------------
+
+\section{Conclusion} % Major section
+
+\lipsum[12-13]
+
+%----------------------------------------------------------------------------------------
+%	BIBLIOGRAPHY
+%----------------------------------------------------------------------------------------
+
+\begin{thebibliography}{99} % Bibliography - this is intentionally simple in this template
+
+\bibitem[Maurice Herlihy and Nir Shavit]. The Art of Multiprocessor Programming. Amsterdam; London: Elsevier/Morgan Kaufmann, 2012. Print.
+\end{thebibliography}
+
+%----------------------------------------------------------------------------------------
+
+\end{document}
