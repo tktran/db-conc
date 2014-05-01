@@ -25,15 +25,13 @@
 
 \usepackage{float} % Allows putting an [H] in \begin{figure} to specify the exact location of the figure
 \usepackage{wrapfig} % Allows in-line images such as the example fish picture
-
 \usepackage{lipsum} % Used for inserting dummy 'Lorem ipsum' text into the template
 
 \linespread{1.2} % Line spacing
 
 %\setlength\parindent{0pt} % Uncomment to remove all indentation from paragraphs
 
-\graphicspath{{Pictures/}} % Specifies the directory where pictures are stored
-
+\graphicspath{{Pictures/}} % Specifies the directory where pictures are 
 \begin{document}
 
 %----------------------------------------------------------------------------------------
@@ -51,7 +49,7 @@
 \textsc{\large Net-centric Computing}\\[0.5cm] % Minor heading such as course title
 
 \HRule \\[0.4cm]
-{ \huge \bfseries The Art of Database Concurrency}\\[0.4cm] % Title of your document
+{ \huge \bfseries MySQL Concurrency}\\[0.4cm] % Title of your document
 \HRule \\[1.5cm]
 
 \begin{minipage}{0.4\textwidth}
@@ -89,17 +87,14 @@ Dr. Burkhard \textsc{Englert} % Supervisor's Name
 %----------------------------------------------------------------------------------------
 
 \section{Introduction} % Major section
-The forces underlying a "multiprocessor revolution" in programming are also causing a revolution in the databases field, toward massive multi-client concurrency and the storage of \textit{very large} amounts of data. These forces are both push and pull: database designers are being \textit{pushed} to develop such systems due to the rise of high-throughput web applications, as exemplified by Facebook, which as of 2011 serviced 60 million queries and 4 million row changes per second, and \textit{pulled} to do so in response to recent hardware advances, such as cheap multi-core CPUs, that have made it physically possible for databases to service so many transactions at once.
+The forces underlying a "multiprocessor revolution" in programming are also causing a revolution in the databases field, toward massive multi-client concurrency and the storage of \textit{very large} amounts of data. These forces are both push and pull: database designers are being \textit{pushed} to develop such systems due to the rise of high-throughput web applications, as exemplified by Facebook, which as of 2011 serviced 60 million queries and 4 million row changes per second, and \textit{pulled} to do so in response to recent hardware advances, such as cheap multi-core CPUs and the cheap construction of server farms, that have made it physically possible for databases to service so many transactions at once.
 
-The pressure to innovate has thus spawned challengers to the relational database establishment for the business of the highest throughput applications. They are collectively termed \textit{NoSQL} databases, and work by relaxing certain correctness constraints that relational databases are founded on and thus cannot forego. But, in a sense, industry-strength relational databases have anticipated that challenge for many years now: by seeking to ensure database correctness in the case of concurrent access by two or three, ten or a hundred clients, they have put into place, if not implemented, the mechanisms to ensure correctness for thousands and millions of concurrent accesses. 
-
-It stands that relational databases have work to do as technology progresses, both by developing novel concurrency solutions and by adapting techniques from multiprocessor programming. I consider the latter approach by relating the techniques taught in the CSULB Net-centric Computing class to those implemented in Oracle MySQL, the most popular relational database and arguably one of the most innovative in response to concurrency concerns. I build upon the things I learned in the Database Fundamentals class and parallel the things I am learning in Net-centric Computing, in particular by matching database concepts to the \textit{Art of Multiprocessor Programming} textbook, chapter by chapter.
-
+As with multiprocessor programming, databases can manage high throughput in two ways: \textit{distribution} and \textit{concurrency}. Distribution divides data and processing among multiple physical servers, while concurrency manages the simultaneous serving of user requests on one server.  I will learn about the latter by documenting concurrency principles and practice in MySQL, the most popular open source relational database. The problems addressed are just as fascinating as those in multiprocessor programming.
 %------------------------------------------------
 
 \subsection{The Rigors of Database Concurrency} % Sub-section
 
-In 1969, Edgar Codd formulated the \textit{relational model} of databases, which formalized and argued for a new type of database governed by logical relations, but forewent describing its implementation details, except for a mention that "inputs causing [...] inconsistencies [...] can be tracked down if the system maintains a journal of all state-changing transactions". It was left for industry, rather, to implement Codd's ideas and realize the importance of that statement. In particular, the implementation of \textit{transactions} would come to be more important than had been anticipated; one traded their usefulness as a description of a \textit{unit} of work for the challenges of ensuring database consistency between and within transactions. 
+In 1969, Edgar Codd formulated the \textit{relational model} of databases, which formalized and argued for a new type of database governed by logical relations, but forewent describing its implementation details, except for a mention that "inputs causing [...] inconsistencies [...] can be tracked down if the system maintains a journal of all state-changing transactions". When developers in industry implemented Codd's ideas, they found that the implementation of \textit{transactions} would come to be more important than had been anticipated. One traded their usefulness as a description of an atomic unit of work for the new challenge of ensuring database consistency between transactions.
 
 For example, banking databases must implement money transfers as atomic transactions. Consider Alice, who has \$500, sending \$100 to Bob, who has \$400. The database starts a transaction, subtracts \$100 from Alice's account, and is about to add \$100 to Bob's account when the power to the server fails.  Upon restart, Alice has \$500 and Bob has \$500, so that the bank is now in an incorrect state. 
 
@@ -126,29 +121,92 @@ The bank does two things monthly: 1) credit customers with 5\% interest, and 2) 
 The bank applies a monthly service fee only to customers who have not made a deposit in the last 30 days. A transaction to maintain that policy: 1) retrieves those customers, 2) applies the fees, and 3) retrieves those customers again in order to notify them of the charge. Meanwhile, after (2) but before (3), Frank, who has not made a deposit recently, makes a deposit. He thus has not been charged in (2), but nevertheless sees the message in (3). His row is a phantom which did not appear in the first range retrieval, but did in the second.
 
 \subsection{The Harsh Realities of Ensuring ACID}
-A first solution to the preceding concurrency problems would involve locking the database before each transaction, but that would defeat the purpose of concurrency. Further refinement would lock only the relevant tables, and further would lock only the relevant \textit{rows}. Lastly, the database would apply different levels of read/write locks; for example, two transactions which read, but do not write, a row should both be able to access it. (More to come)
+A first solution to the preceding concurrency problems would involve locking the database before each transaction, but that would defeat the purpose of concurrency. Further refinement would lock only the relevant tables, and further would lock only the relevant \textit{rows}. Lastly, the database would apply different levels of read/write locks; for example, two transactions which read, but do not write, a row should both be able to access it. (More to come - this is in the mutual exclusion chapter)
 
-Further and further optimization approaches a theoretical speedup limit, as measured with Amdahl's Law, described in \textit{AoMP}, section 1.5. However, databases are more susceptible to coherency delay, the work that the system must perform to synchronize shared data, than sequential programs, as Amdahl's Law is made to model. In that case, Neil Gunther's \textit{Universal Scalability Law} presents a more accurate measure of scalability. It is Amdahl's Law with an additional \textit{coherency penalty}: \marginpar{\scriptsize{TODO: Some defns from Percona paper. Paraphrase later.}}
+Further and further optimization approaches a theoretical speedup limit, as measured simplistically with Amdahl's Law, described in \textit{AoMP}, section 1.5. However, database designers must also pay attention to two parameters not addressed by Amdahl's Law: queuing delay and coherency delay.
+
+Queuing delay is the time that a scheduled task must wait in the task queue before it can execute. In databases, it models the time that transactions must wait on resources such as, obviously, table locks, but also buffers, access to the SQL parser, backup logs, etc.
+
+Coherency delay is the work that the system must perform to synchronize shared data. An example in \textit{AoMP} occurs in its discussion of test-and-test-and-set (TTAS) locks, which minimize coherency delay by having threads spin on cached copies of a lock variable before moving to change it globally. Although databases do not use TTAS locks, they do make use of mutex locking for up to hundreds of database threads, so that coherency delay is significant.
+
+There is a lot of literature out there that analyzes the scaling of database performance. But out of all techniques, the one most applicable to the Net-centric Computing class is the \textit{Universal Scalability Law} because it is Amdahl's Law with an additional \textit{coherency penalty}: \marginpar{\scriptsize{TODO: Some defns from Percona paper. Paraphrase later.}}
 \[C(N) = \frac{N}{1+\sigma (N-1)+\kappa N(N-1)}\] \marginpar{\scriptsize{TODO: Write equation like Amdahl's in textbook}}
 
-where N is the number of processes available to process transactions, \(\sigma\) is \textit{contention} (the system's performance degradation due to portions of the work being serial instead of parallel) and \(\kappa\) is \textit{coherency delay}, which in databases is often mutex locking. \marginpar{\scriptsize{TODO: Example.}}
+where N is the number of processes available to process transactions, \(\sigma\) is \textit{contention} (the system's performance degradation due to portions of the work being serial instead of parallel) and \(\kappa\) is officially \textit{coherency delay}. In empirical analysis, we include queuing delay in coherency delay, although a more accurate mathematical model would not scale queuing delay as N(N-1), but would rather use Kendall's M/M/c model.
 
-The coherency parameter reconciles \textit{Chapter 1: Introduction}'s coverage of Amdahl's Law with \textit{Chapter 7: Spin Locks and Contention}'s coverage of caching and memory locality.
+\marginpar{\scriptsize{TODO: Example, explanation.}}
 %----------------------------------------------------------------------------------------
 %	MAJOR SECTION 1
 %----------------------------------------------------------------------------------------
 
 \section{Mutual Exclusion} % Major section
 
-The central problem of database concurrency, then, is reconciling the scalability goals of \textit{increased parallelization} and \textit{decreased coherency delay} with the correctness goals of eliminating \textit{concurrency anomalies}. Toward that end, database designers have codified \textit{isolation levels} which trade varying levels of mutual exclusion for increased performance. They are outlined in the SQL standard, from "dirtiest" to "cleanest", as:
-\begin{description}
-  \item[Read Uncommitted] Statements can read data that has been modified by ongoing transactions. That is, allow dirty reads, non-repeatable reads, and phantom reads.
-  \item[Read Committed] Statements cannot read data that has been modified by ongoing transactions. But, during a transaction, data can be \textit{changed} by other transactions. That is, allow non-repeatable reads and phantom reads, but disallow dirty reads. 
-  \item[Repeatable Read] Statements cannot read modified data, nor write data being read by other transactions. However, there are no \textit{range} locks, so that phantom reads are allowed, even if non-repeatable reads and dirty reads are not.
-  \item[Serializable] Repeatable read, with additional \textit{range locking} to make phantom reads impossible. This makes all transactions linearizable as defined in \textit{AoMP}.\marginpar{\scriptsize{TODO: cover lost updates for all 4}}
-\end{description}
+\subsubsection{History and important concepts}
+I outline important concepts before describing which locks are used in each transaction level.
 
-Each level is implemented with different types of mutual exclusion locks
+MySQL is unique among the major databases for featuring multiple storage engines. MySQL started development with the MyISAM engine, which did not support transactions and locked on the table level. (Other engines here, inconsequential). At the time of MySQL 5.1, Oracle, a competing company developed the InnoDB engine, which supported transactions and row-level locks, and allowed for explicit locking via SQL queries. Oracle later acquired Sun, which owned MySQL, and proceeded to make InnoDB the default MySQL storage engine. It is now recommended for small and large applications. Notably, Google and Facebook, among others, use it and have contributed to its development.
+
+There are two types of row-level locks in InnoDB, taken from database research. A \textit{shared} (\textit{S}) lock permits a transaction to read a row (MySQL ref manual). A \textit{exclusive} (\textit{X}) lock permits a transaction to update or delete a row. Their names are self explanatory; multiple transactions can have shared locks on a row, but not on an exclusive lock.
+
+Additionally, an exclusive lock on a tuple should prevent an exclusive lock on the whole relation. To implement this, all locks must be accompanied by \textit{intention locks} on tables. A transaction holds a \textit{shared intention lock} on a table if the only locks it intends to set are S locks. It holds a \textit{intention exclusive} lock if it intends to set at least one X lock.
+
+Locking is not the only form of concurrency control, however. InnoDB also uses a database concept called \textit{multiversion concurrency control} (\textit{MVCC}). In MVCC, each session connected to the database sees a snapshot of the database at a particular instant in time. In certain isolation modes, this allows for non-locking reads, aka consistent reads, where different transactions operate on different snapshots in parallel, and merge their changes after they are done. There are some complicated protocols involved, which I will discuss later.
+
+MVCC improves speed, but does not prevent all types of anomalies, so MySQL may combine it with record locks, gap locks, and next-key locks. A \textit{record lock} locks a row, aka a record in the index. A \textit{gap lock} locks the gap between index records. A \textit{next-key lock} combines a record lock on an index and a gap lock on the gap before the index record.
+
+\subsubsection{High-level Concerns}
+(Transition from last section - this is how we make use of the above concepts)
+The preceding examples illustrate that a big problem in database concurrency is juggling \textit{increased parallelization}, \textit{decreased delay}, and the elimination of \textit{concurrency anomalies}. Toward that end, database designers have codified \textit{isolation levels} which trade varying levels of correctness for increased performance. They are outlined in the SQL standard, from "cleanest" to "dirtiest", as: \texttt{SERIALIZABLE}, \texttt{REPEATABLE READ}, \texttt{READ COMMITTED}, and \texttt{READ UNCOMMITTED}.
+
+% Take out these descriptions into separate sections.
+% \begin{description}
+%  \item[Repeatable Read] Statements cannot read modified data, nor write data being read by other transactions. However, there are no \textit{range} locks, so that phantom reads are allowed, even if non-repeatable reads and dirty reads are not.
+%  \item[Serializable] Repeatable read, with additional \textit{range locking} to make phantom reads impossible. This makes all transactions linearizable as defined in \textit{AoMP}.\marginpar{\scriptsize{TODO: cover lost updates for all 4}}
+%\end{description}
+
+% \subsubsection{Snapshot isolation (not an isolation level}
+% Turn on Repeatable Read or Serializable, and START TRANSACTION WITH CONSISTENT SNAPSHOT
+\subsubsection{Serializable}
+The transaction history is serializable in the mathematical sense: any two successfully committed transactions will appear to have executed serially, i.e., one after the other, although which one occurred first might not be predictable in advance. This is implemented with...
+
+\subsubsection{Read Committed}
+Statements cannot read data that has been modified by ongoing transactions. 
+
+But, during a transaction, data can be \textit{changed} by other transactions. That is, allow non-repeatable reads and phantom reads, but disallow dirty reads. This is implemented with...
+
+\subsubsection{Repeatable Read}
+Statements cannot read modified data, nor write data being read by other transactions. However, there are no \textit{range} locks, so that phantom reads are allowed, even if non-repeatable reads and dirty reads are not. This is implemented with...
+
+\subsubsection{Read Uncommitted}
+This level provides the most concurrency and the least protection. Statements can read data that has been modified by ongoing transactions. SELECT statements are performed in a nonlocking fashion (MySQL doc), although a possible earlier version of a row might be used. 
+
+This makes dirty reads, non-repeatable reads, and phantom reads possible. This is implemented with...
+
+\subsubsection{Notes on MVCC Serializability}
+The SQL standard was written with locking databases in mind, and defined the four isolation levels \textit{in terms} which anomalies they prevented. That led to the assumption that \texttt{SERIALIZABLE} would then guarantee correctness, since the only way to prevent the named anomalies was to lock down entire tables, forcing actual temporal serializability.
+
+However, when most major databases began using MVCC, it was found that an MVCC implementation of \texttt{SERIALIZABLE} could prevent the named anomalies but still be incorrect in some cases involving aggregate functions, i.e., one transaction \texttt{SELECT}ing the \texttt{SUM} of a column while another transaction inserts another row with a value in that column. (Berenson et al). In response, Berenson et al proposed an alternative isolation level for MVCC databases called \texttt{SNAPSHOT ISOLATION}. This level guarantees that "all reads made in a transaction will see a consistent snapshot of the database, and that the transaction will commit only if no updates that it has made conflict with any concurrent updates made since that snapshot". That is, transactions see non-overlapping snapshots of the database in time. \marginpar{\scriptsize{TODO: detailed explanation why.}}
+
+
+As others describe, the distinction between \texttt{SERIALIZABLE} and \texttt{SNAPSHOT} is akin to that between pessimistic and optimistic locking: \texttt{SERIALIZABLE} locks beforehand to ensure correctness, while \texttt{SNAPSHOT} immediately makes changes to a snapshot first, but is able to fail once it attempts to commit to the database. 
+
+It is theoretically possible for MVCC databases to give the appearance of true serializability using a combination of MVCC and \textit{predicate locking}, which prevents phantom reads by preventing one transaction from inserting or modifying a row that would have matched the \texttt{WHERE} condition of another transaction's \texttt{SELECT} operation. But predicate locking is computationally expensive because it involves keeping track of all \texttt{SELECT...WHERE} statements being performed globally. So, instead, in many MVCC databases, the \texttt{SERIALIZABLE} isolation level is not true serializability but snapshot isolation. This is a point of confusion among database professionals, as these implementations are correct under the SQL definition of serializability, but not under the formal definition (see Herlihy \& Wing).
+
+The most popular databases differ on this issue.
+\textit{Oracle Database}, the most popular database, implements snapshot isolation by default. One enables true serializability by manually locking tables.
+\textit{Microsoft SQL Server}, the second most popular, implements true serializability. A separate \texttt{SNAPSHOT ISOLATION} level is available for performance.
+\textit{PostgreSQL}, the fourth most popular database, implemented snapshot isolation prior to version 9.1 (September 2011). Afterward, it practically implemented true serializability using a new technique called \textit{serializable snapshot isolation}, which uses MVCC for speed but adds additional checking for anomalies.
+
+Lastly, as it pertains to this paper, MySQL is the third most popular database. Its InnoDB engine has always aimed to give the appearance of true serializability, using a combination of MVCC, index locking, and predicate locking. Prior to MySQL 5.5 (December 2010), this implementation was buggy, as illustrated as follows. Consider client A running a transaction in which it will \texttt{SELECT} all rows \texttt{WHERE x = 1}. Then, client B runs a transaction to insert a row with \texttt{x = 2, y = 10}. This statement passes predicate locking, as it does not affect A's \texttt{WHERE} clause. But in this buggy implementation, next-key locking only locks the next key of the \textit{most recently inserted row}. So, client B then inserts another row with \texttt{x = 1, y = 20}, which should not pass, but does because (to figure out).
+
+\section{Practicum}
+To do.
+% \subsubsection{Serializability vs Linearizability}
+%The \textit{AoMP} chapter on concurrent objects describes linearizability as the strictest concurrency condition. But in databases, the gold standard of correctness is serializability. How are they related?
+
+%Well, linearizability is a local property, wherein every operation takes place at an instant in real time. Serializability is a global property, wherein all operations (which can be encapsulated in a transaction at this point, since there's no need for an "instance" description) take place sequentially, i.e., without interleaving. So setting SERIALIZABILITY makes every transaction linearizable, at the point when it concludes, since if the transaction were to fail before then, it would not have taken effect. How does it conclude? Something about transaction ID.
+
+ 
 %------------------------------------------------
 
 
@@ -172,10 +230,8 @@ Each level is implemented with different types of mutual exclusion locks
 %	CONCLUSION
 %----------------------------------------------------------------------------------------
 
-\section{Conclusion} % Major section
-
-\lipsum[12-13]
-
+\section{Conclusion} % Major 
+To do.
 %----------------------------------------------------------------------------------------
 %	BIBLIOGRAPHY
 %----------------------------------------------------------------------------------------
@@ -183,6 +239,10 @@ Each level is implemented with different types of mutual exclusion locks
 \begin{thebibliography}{99} % Bibliography - this is intentionally simple in this template
 
 \bibitem[Maurice Herlihy and Nir Shavit]. The Art of Multiprocessor Programming. Amsterdam; London: Elsevier/Morgan Kaufmann, 2012. Print.
+\bibitem[Edgar Codd]. A Relational Model of Data for Large Shared Data Banks. 
+\bibitem[Hal Berenson, Phil Bernstein, Jim Gray, Jim Melton, Elizabeth O'Neil, and Patrick O'Neil]. A critique of ANSI SQL isolation levels: ACM, SIGMOD '95 Proceedings of the 1995 ACM SIGMOD. 1995.
+\bibitem[Herlihy, Maurice and Jeanette Wing]. Linearizability: A Correctness Condition for Concurrent Objects. ACM Trans. Prog. Lang. and Sys. Vol. 12, No. 3, July 1990, Pages 463-492. URL http://www.cs.brown.edu/~mph/HerlihyW90/p463-herlihy.pdf
+\bibitem[Various MySQL textbooks and documentation; to cite].
 \end{thebibliography}
 
 %----------------------------------------------------------------------------------------
